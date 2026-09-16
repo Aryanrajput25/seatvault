@@ -87,30 +87,31 @@ public class BookingService {
     public Booking create(String userId, Long showId, List<Long> seatIds) {
         validateSeatSelection(seatIds);
 
-        Show show = find(shows, showId, "Show"); //The service retrieves the show from MySQL. This Finds the show
+        Show show = find(shows, showId, "Show"); //The service retrieves the show from MySQL. This Finds the show, if the show doesn't exist: it gives show not found
         List<Seat> selectedSeats = seats.findAllById(seatIds); //this Finds the requested seats
-        validateSeatsBelongToShow(show, selectedSeats, seatIds);
+        validateSeatsBelongToShow(show, selectedSeats, seatIds); //checks that the seat actually belongs to the screen associated with this show.
 
         // saveAndFlush so the generated booking id is available immediately —
         // we need it as the "owner" value written into the Redis lock below.
-        Booking booking = bookings.saveAndFlush(new Booking(show, userId, selectedSeats));
+        Booking booking = bookings.saveAndFlush(new Booking(show, userId, selectedSeats)); //it Creates the Booking
 
-        List<Long> orderedSeatIds = seatIds.stream().sorted().toList();
+        List<Long> orderedSeatIds = seatIds.stream().sorted().toList(); //Sort the seat IDs Because consistently acquiring locks in the same order helps reduce the possibility of deadlocks.
 
-        if (!seatLocks.lockAll(showId, orderedSeatIds, booking.getId())) {
-            throw new IllegalStateException("At least one seat is temporarily unavailable");
+        if (!seatLocks.lockAll(showId, orderedSeatIds, booking.getId())) { //this calls SeatLockService which communicates with redis
+            throw new IllegalStateException("At least one seat is temporarily unavailable"); //BookingService -> SeatLockService -> redis
         }
 
-        List<ShowSeatReservation> reservationRows = reservations.lockAll(showId, orderedSeatIds);
-        boolean anySeatUnavailable = reservationRows.size() != orderedSeatIds.size()
-                || reservationRows.stream().anyMatch(row -> !row.canBeClaimed(Instant.now()));
+        List<ShowSeatReservation> reservationRows = reservations.lockAll(showId, orderedSeatIds); //MySQL authoritative check, This is where the database-level lock comes in. The repository's lockAll() uses a locking query
+        boolean anySeatUnavailable = reservationRows.size() != orderedSeatIds.size() //Check whether the seat can actually be claimed
+                || reservationRows.stream().anyMatch(row -> !row.canBeClaimed(Instant.now())); //this checks Did I get all the required reservation rows, and can every requested seat currently be claimed? if yes-booking continues, if no-booking rejected
 
-        if (anySeatUnavailable) {
+        if (anySeatUnavailable) { //if any one of the seat is unavailable then this happens
             seatLocks.release(showId, orderedSeatIds, booking.getId());
             throw new IllegalStateException("At least one seat is unavailable");
         }
 
-        Instant expiresAt = Instant.now().plus(holdTimeout);
+        //if all seats are available then this Creates the temporary reservation
+        Instant expiresAt = Instant.now().plus(holdTimeout); //Now the seat becomes associated with this pending booking. The user now needs to complete payment.
         reservationRows.forEach(row -> row.claim(booking, expiresAt));
 
         return booking;
@@ -124,9 +125,9 @@ public class BookingService {
      *         another booking before payment completed
      */
     @Transactional
-    public Booking succeed(Long bookingId, String userId) {
-        Booking booking = lockBooking(bookingId);
-        verifyOwner(booking, userId);
+    public Booking succeed(Long bookingId, String userId) { //this is called if User pays successfully
+        Booking booking = lockBooking(bookingId); //The service again locks the booking:
+        verifyOwner(booking, userId);//here it Verify that the booking belongs to U1 and is still in the PENDING state?
 
         if (booking.getStatus() == BookingStatus.CONFIRMED) {
             return booking;
@@ -134,32 +135,32 @@ public class BookingService {
         requirePending(booking);
 
         List<Long> seatIds = orderedSeatIdsOf(booking);
-        List<ShowSeatReservation> reservationRows = reservations.lockAll(booking.getShow().getId(), seatIds);
+        List<ShowSeatReservation> reservationRows = reservations.lockAll(booking.getShow().getId(), seatIds);//Locks reservation rows again
 
         Instant now = Instant.now();
         boolean holdIsStillValid = reservationRows.size() == seatIds.size()
-                && reservationRows.stream().allMatch(row -> row.belongsTo(booking) && row.isLiveHold(now));
+                && reservationRows.stream().allMatch(row -> row.belongsTo(booking) && row.isLiveHold(now));//this checks The seat is still held by this booking and the hold hasn't expired.
 
         if (!holdIsStillValid) {
             expire(booking, reservationRows);
             throw new IllegalStateException("Seat hold has expired or was replaced");
         }
 
-        for (Seat seat : booking.getSeats()) {
+        for (Seat seat : booking.getSeats()) { //Creates confirmed seat records
             boolean alreadyConfirmedElsewhere =
                     confirmedSeats.existsByShowIdAndSeatId(booking.getShow().getId(), seat.getId());
             if (alreadyConfirmedElsewhere) {
                 throw new IllegalStateException("Seat was already confirmed");
             }
-            confirmedSeats.save(new ConfirmedShowSeat(booking.getShow(), seat, booking));
+            confirmedSeats.save(new ConfirmedShowSeat(booking.getShow(), seat, booking)); //This represents confirmed ownership.
         }
-        confirmedSeats.flush();
+        confirmedSeats.flush(); //ensures those changes are flushed to the database.
 
-        reservationRows.forEach(ShowSeatReservation::confirm);
-        booking.confirm();
-        seatLocks.release(booking.getShow().getId(), seatIds, booking.getId());
+        reservationRows.forEach(ShowSeatReservation::confirm); //Change reservation + booking state
+        booking.confirm();                                     //PENDING -> CONFIRMED
+        seatLocks.release(booking.getShow().getId(), seatIds, booking.getId()); //Release Redis lock, The temporary Redis lock is no longer required.
 
-        return booking;
+        return booking; //Response goes back to controller
     }
 
     /**

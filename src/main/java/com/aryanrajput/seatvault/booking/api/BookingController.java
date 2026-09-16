@@ -183,7 +183,7 @@ public class BookingController { //the first entry point of the project after in
     // Mapping helpers
     // ------------------------------------------------------------------
 
-    private BookingResponse toBookingResponse(Booking booking) {
+    private BookingResponse toBookingResponse(Booking booking) { //service's booking returns here, this is called when the payment is successfull and seat is reserved
         List<Long> seatIds = booking.getSeats().stream().map(Seat::getId).toList();
         return new BookingResponse(
                 booking.getId(),
