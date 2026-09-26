@@ -38,7 +38,7 @@ import java.util.NoSuchElementException;
  * has expired can never confirm, because by the time it re-reads its
  * reservation row under lock, it will see it no longer holds a live hold.
  */
-@Service
+@Service //@Service tells Spring that the class is a service-layer component and should be managed as a Spring Bean. Spring detects it during component scanning and makes it available for dependency injection.
 public class BookingService {
 
     private final Bookings bookings;
@@ -83,7 +83,7 @@ public class BookingService {
     //@Transactional ensures that the critical database operations performed by the booking workflow execute within a transaction.
     // This allows the application to maintain atomicity and use database-level locking consistently.
     // If the transaction fails, the database changes can be rolled back rather than leaving partial state.
-    @Transactional
+    @Transactional   //used to automatically manage database transactions.
     public Booking create(String userId, Long showId, List<Long> seatIds) {
         validateSeatSelection(seatIds);
 
