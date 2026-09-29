@@ -22,7 +22,7 @@ public class Seat {
     @ManyToOne(optional = false) //@ManyToOne represents a relationship where multiple entities are associated with one entity. In SeatVault, multiple seats belong to the same screen.
     private Screen screen;
 
-    @Column(nullable = false)
+    @Column(name = "row_num", nullable = false)
     private int rowNumber;
 
     @Column(nullable = false)

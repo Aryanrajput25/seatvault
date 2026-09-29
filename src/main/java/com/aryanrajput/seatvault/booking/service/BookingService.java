@@ -7,11 +7,11 @@ import com.aryanrajput.seatvault.booking.domain.ReservationState;
 import com.aryanrajput.seatvault.booking.domain.Seat;
 import com.aryanrajput.seatvault.booking.domain.Show;
 import com.aryanrajput.seatvault.booking.domain.ShowSeatReservation;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Bookings;
-import com.aryanrajput.seatvault.booking.repo.Repositories.ConfirmedSeats;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Seats;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Shows;
-import com.aryanrajput.seatvault.booking.repo.Repositories.ShowSeatReservations;
+import com.aryanrajput.seatvault.booking.repo.Bookings;
+import com.aryanrajput.seatvault.booking.repo.ConfirmedSeats;
+import com.aryanrajput.seatvault.booking.repo.Seats;
+import com.aryanrajput.seatvault.booking.repo.Shows;
+import com.aryanrajput.seatvault.booking.repo.ShowSeatReservations;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -124,7 +124,7 @@ public class BookingService {
      * @throws IllegalStateException if the hold expired or was reassigned to
      *         another booking before payment completed
      */
-    @Transactional
+    @Transactional(noRollbackFor = HoldExpiredException.class)
     public Booking succeed(Long bookingId, String userId) { //this is called if User pays successfully
         Booking booking = lockBooking(bookingId); //The service again locks the booking:
         verifyOwner(booking, userId);//here it Verify that the booking belongs to U1 and is still in the PENDING state?
@@ -143,7 +143,7 @@ public class BookingService {
 
         if (!holdIsStillValid) {
             expire(booking, reservationRows);
-            throw new IllegalStateException("Seat hold has expired or was replaced");
+            throw new HoldExpiredException("Seat hold has expired or was replaced");
         }
 
         for (Seat seat : booking.getSeats()) { //Creates confirmed seat records

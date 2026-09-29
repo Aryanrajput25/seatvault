@@ -1,7 +1,7 @@
 package com.aryanrajput.seatvault.booking;
 
-import com.aryanrajput.seatvault.booking.repo.Repositories.ConfirmedSeats;
-import com.aryanrajput.seatvault.booking.repo.Repositories.ShowSeatReservations;
+import com.aryanrajput.seatvault.booking.repo.ConfirmedSeats;
+import com.aryanrajput.seatvault.booking.repo.ShowSeatReservations;
 import com.aryanrajput.seatvault.booking.service.SeatLockService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

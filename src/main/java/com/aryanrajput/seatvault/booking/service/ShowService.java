@@ -4,11 +4,11 @@ import com.aryanrajput.seatvault.booking.domain.Movie;
 import com.aryanrajput.seatvault.booking.domain.Screen;
 import com.aryanrajput.seatvault.booking.domain.Show;
 import com.aryanrajput.seatvault.booking.domain.ShowSeatReservation;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Movies;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Screens;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Seats;
-import com.aryanrajput.seatvault.booking.repo.Repositories.Shows;
-import com.aryanrajput.seatvault.booking.repo.Repositories.ShowSeatReservations;
+import com.aryanrajput.seatvault.booking.repo.Movies;
+import com.aryanrajput.seatvault.booking.repo.Screens;
+import com.aryanrajput.seatvault.booking.repo.Seats;
+import com.aryanrajput.seatvault.booking.repo.Shows;
+import com.aryanrajput.seatvault.booking.repo.ShowSeatReservations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

@@ -14,12 +14,12 @@ CREATE TABLE screen (
 );
 
 CREATE TABLE seat (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    screen_id   BIGINT NOT NULL,
-    row_number  INT NOT NULL,
-    seat_number INT NOT NULL,
-    CONSTRAINT fk_seat_screen FOREIGN KEY (screen_id) REFERENCES screen (id),
-    CONSTRAINT uq_screen_position UNIQUE (screen_id, row_number, seat_number)
+                      id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+                      screen_id   BIGINT NOT NULL,
+                      row_num     INT NOT NULL,
+                      seat_number INT NOT NULL,
+                      CONSTRAINT fk_seat_screen FOREIGN KEY (screen_id) REFERENCES screen (id),
+                      CONSTRAINT uq_screen_position UNIQUE (screen_id, row_num, seat_number)
 );
 
 -- Catalogue.
