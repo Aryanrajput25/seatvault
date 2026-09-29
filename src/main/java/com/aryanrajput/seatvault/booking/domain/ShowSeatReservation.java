@@ -42,8 +42,8 @@ public class ShowSeatReservation { //this is a representation of the seat's rese
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "show_id")
+    @ManyToOne(optional = false) //Many ShowSeatReservation records can belong to one Show. optional = false means Every reservation must have a Show. It cannot be null.
+    @JoinColumn(name = "show_id") //show_id is the foreign-key column in the show_seat_reservations table.
     private Show show;
 
     @ManyToOne(optional = false)

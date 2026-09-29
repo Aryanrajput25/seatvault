@@ -19,7 +19,7 @@ import java.util.NoSuchElementException;
  *   IllegalStateException             -&gt; 409 Conflict      (seat unavailable, hold expired, etc.)
  * </pre>
  */
-@RestControllerAdvice
+@RestControllerAdvice //@RestControllerAdvice provides centralized exception handling for REST controllers. It allows application exceptions to be mapped consistently to appropriate HTTP responses.
 public class ApiExceptionHandler { //This handles exceptions thrown by the application and converts them into proper HTTP responses.
 
     @ExceptionHandler(NoSuchElementException.class)

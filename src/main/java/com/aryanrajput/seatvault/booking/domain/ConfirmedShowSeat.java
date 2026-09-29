@@ -34,7 +34,7 @@ public class ConfirmedShowSeat {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false) //
     @JoinColumn(name = "show_id")
     private Show show;
 

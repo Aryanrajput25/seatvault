@@ -91,8 +91,9 @@ public final class Repositories { //Repository classes are responsible for commu
          * across all callers is what prevents two transactions that both need
          * an overlapping set of seats from deadlocking against each other.
          */
-        @Lock(LockModeType.PESSIMISTIC_WRITE)
-        @Query("select r from ShowSeatReservation r "
+        //this is a custom repository query
+        @Lock(LockModeType.PESSIMISTIC_WRITE) //This tells JPA: When you fetch these reservation rows, lock them for writing.
+        @Query("select r from ShowSeatReservation r "           //Hibernate then translates that into database-level locking behavior
                 + "where r.show.id = :showId and r.seat.id in :seatIds "
                 + "order by r.seat.id")
         List<ShowSeatReservation> lockAll(@Param("showId") Long showId, @Param("seatIds") List<Long> seatIds);

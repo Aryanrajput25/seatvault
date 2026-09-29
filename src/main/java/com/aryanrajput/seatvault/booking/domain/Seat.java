@@ -19,7 +19,7 @@ public class Seat {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false) //@ManyToOne represents a relationship where multiple entities are associated with one entity. In SeatVault, multiple seats belong to the same screen.
     private Screen screen;
 
     @Column(nullable = false)
