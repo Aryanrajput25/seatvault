@@ -83,12 +83,12 @@ class ConcurrentBookingIntegrationTest {
 
         List<BookingAttempt> results = bookConcurrently(scenario.showId, List.of(scenario.seatIds.get(0)), 50);
         List<BookingAttempt> winners = results.stream().filter(r -> r.httpStatus == 201).toList();
-        assertThat(winners).hasSize(1);
+        assertThat(winners).hasSize(1); //50 requests -> exactly 1 got HTTP 201 means booking confirmed for only one user
 
         confirmPayment(winners.get(0));
 
         assertThat(confirmedSeats.count()).isEqualTo(confirmedBefore + 1);
-        assertThat(results.stream().filter(r -> r.httpStatus == 409).count()).isEqualTo(49);
+        assertThat(results.stream().filter(r -> r.httpStatus == 409).count()).isEqualTo(49); //this means 1 winner and 49 conflicts
     }
 
     @Test
@@ -115,6 +115,7 @@ class ConcurrentBookingIntegrationTest {
         assertThat(confirmedSeats.count()).isEqualTo(confirmedBefore + 10);
     }
 
+    //here scenerio is- Alice’s A1 hold expires → Bob successfully books A1 → Alice later tries to complete payment.
     @Test
     void expiredHoldCannotBeConfirmedAfterAnotherBookingClaimsTheSeat() {
         Scenario scenario = createScenario(1);
@@ -133,10 +134,11 @@ class ConcurrentBookingIntegrationTest {
         assertThat(bobBooking.httpStatus).isEqualTo(201);
 
         // Alice's payment should now be rejected — bob's booking owns the seat.
-        assertThat(paymentStatus(aliceBooking, "alice")).isEqualTo(409);
-        assertThat(paymentStatus(bobBooking, "bob")).isEqualTo(200);
+        assertThat(paymentStatus(aliceBooking, "alice")).isEqualTo(409); //alice got rejected
+        assertThat(paymentStatus(bobBooking, "bob")).isEqualTo(200); //bob's seat got confirmed
     }
 
+    //One booking is created, then cancellation and payment success run simultaneously using two threads. one will be succeed and another request will be rejected
     @Test
     void cancellationAndPaymentSuccessHaveExactlyOneTerminalWinner() throws Exception {
         Scenario scenario = createScenario(1);
@@ -154,6 +156,7 @@ class ConcurrentBookingIntegrationTest {
         assertThat(statuses.stream().filter(status -> status == 409).count()).isEqualTo(1);
     }
 
+    //Two requests try to create overlapping shows on the same screen. A screen cannot have conflicting overlapping shows.
     @Test
     void concurrentOverlappingShowsOnOneScreenHaveExactlyOneWinner() throws Exception {
         Venue venue = createVenue(1);

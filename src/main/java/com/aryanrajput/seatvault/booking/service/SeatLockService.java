@@ -29,16 +29,18 @@ public class SeatLockService { //This is where the Redis locking logic lives.
      * script, is what makes "lock this whole group of seats, or none of
      * them" atomic — Redis runs the whole script as one operation.
      */
+    //I use a Redis Lua script so checking all requested seat-lock keys and setting them happens atomically. This gives an all-or-nothing lock for multi-seat bookings.
+    //this is a redis lua script
     private static final String LOCK_ALL_SCRIPT =
-            "for i, key in ipairs(KEYS) do "
-                    + "  if redis.call('exists', key) == 1 then "
-                    + "    return 0 "
+            "for i, key in ipairs(KEYS) do "                         //Check every requested key
+                    + "  if redis.call('exists', key) == 1 then "    //Is ANY key already present?
+                    + "    return 0 "                                //YES → return 0
                     + "  end "
                     + "end "
-                    + "for i, key in ipairs(KEYS) do "
+                    + "for i, key in ipairs(KEYS) do "               //if No, Set ALL keys
                     + "  redis.call('set', key, ARGV[1], 'EX', ARGV[2]) "
                     + "end "
-                    + "return 1";
+                    + "return 1";  //if redis can lock all the seats successfully then return 1
 
     /**
      * Deletes only the keys that are still owned by {@code ARGV[1]}. This

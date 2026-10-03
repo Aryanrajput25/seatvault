@@ -84,8 +84,8 @@ public class BookingService {
     // This allows the application to maintain atomicity and use database-level locking consistently.
     // If the transaction fails, the database changes can be rolled back rather than leaving partial state.
     @Transactional   //used to automatically manage database transactions.
-    public Booking create(String userId, Long showId, List<Long> seatIds) {
-        validateSeatSelection(seatIds);
+    public Booking create(String userId, Long showId, List<Long> seatIds) {  //BookingController delicated it to here
+        validateSeatSelection(seatIds);  //This checks that the request itself is valid like it is no null values in seat and all
 
         Show show = find(shows, showId, "Show"); //The service retrieves the show from MySQL. This Finds the show, if the show doesn't exist: it gives show not found
         List<Seat> selectedSeats = seats.findAllById(seatIds); //this Finds the requested seats
@@ -97,24 +97,26 @@ public class BookingService {
 
         List<Long> orderedSeatIds = seatIds.stream().sorted().toList(); //Sort the seat IDs Because consistently acquiring locks in the same order helps reduce the possibility of deadlocks.
 
-        if (!seatLocks.lockAll(showId, orderedSeatIds, booking.getId())) { //this calls SeatLockService which communicates with redis
-            throw new IllegalStateException("At least one seat is temporarily unavailable"); //BookingService -> SeatLockService -> redis
+        //now we reach redis
+        if (!seatLocks.lockAll(showId, orderedSeatIds, booking.getId())) { //this calls SeatLockService which communicates with redis. BookingService -> SeatLockService -> redis
+            throw new IllegalStateException("At least one seat is temporarily unavailable"); //if redis cannot acquire lock for all the seats then it throws this error
         }
 
-        List<ShowSeatReservation> reservationRows = reservations.lockAll(showId, orderedSeatIds); //MySQL authoritative check, This is where the database-level lock comes in. The repository's lockAll() uses a locking query
+        //mysql after redis succeed, This is the authoritative check.
+        List<ShowSeatReservation> reservationRows = reservations.lockAll(showId, orderedSeatIds); //MySQL authoritative check, This is where the database-level lock comes in. The repository's lockAll() uses a locking query which locks the row
         boolean anySeatUnavailable = reservationRows.size() != orderedSeatIds.size() //Check whether the seat can actually be claimed
                 || reservationRows.stream().anyMatch(row -> !row.canBeClaimed(Instant.now())); //this checks Did I get all the required reservation rows, and can every requested seat currently be claimed? if yes-booking continues, if no-booking rejected
 
         if (anySeatUnavailable) { //if any one of the seat is unavailable then this happens
             seatLocks.release(showId, orderedSeatIds, booking.getId());
-            throw new IllegalStateException("At least one seat is unavailable");
+            throw new IllegalStateException("At least one seat is unavailable"); //throws error
         }
 
         //if all seats are available then this Creates the temporary reservation
         Instant expiresAt = Instant.now().plus(holdTimeout); //Now the seat becomes associated with this pending booking. The user now needs to complete payment.
-        reservationRows.forEach(row -> row.claim(booking, expiresAt));
+        reservationRows.forEach(row -> row.claim(booking, expiresAt)); //here the state of seat goes to HELD from available
 
-        return booking;
+        return booking; //Finally the transaction commits. controller converts the entity into: BookingResponse and sends: 201 CREATED
     }
 
     /**
@@ -141,7 +143,7 @@ public class BookingService {
         boolean holdIsStillValid = reservationRows.size() == seatIds.size()
                 && reservationRows.stream().allMatch(row -> row.belongsTo(booking) && row.isLiveHold(now));//this checks The seat is still held by this booking and the hold hasn't expired.
 
-        if (!holdIsStillValid) {
+        if (!holdIsStillValid) { //if hold is not valid
             expire(booking, reservationRows);
             throw new HoldExpiredException("Seat hold has expired or was replaced");
         }
@@ -205,20 +207,20 @@ public class BookingService {
      * its hold window has passed, freeing the seats it was holding. Runs
      * every {@code booking.expiration-sweep-seconds} seconds.
      */
-    @Scheduled(fixedDelayString = "${booking.expiration-sweep-seconds:15}000")
+    @Scheduled(fixedDelayString = "${booking.expiration-sweep-seconds:15}000") //enables Spring's scheduled jobs here, used for seat hold expiration
     @Transactional
-    public void expireStaleBookings() {
-        Instant cutoff = Instant.now().minus(holdTimeout);
-
+    public void expireStaleBookings() {  //it finds bookings that are still pending and older than the expiry cutoff.
+        Instant cutoff = Instant.now().minus(holdTimeout);  //scheduler calculates:
+        //Then it finds old pending bookings:
         bookings.findByStatusAndCreatedAtBefore(BookingStatus.PENDING, cutoff)
                 .stream()
                 .map(Booking::getId)
                 .forEach(id -> {
-                    Booking booking = lockBooking(id);
+                    Booking booking = lockBooking(id);  //For every candidate, it locks the booking row:
                     boolean stillStalePending = booking.getStatus() == BookingStatus.PENDING
                             && booking.getCreatedAt().isBefore(cutoff);
-                    if (stillStalePending) {
-                        expire(booking, lockReservationRowsOf(booking));
+                    if (stillStalePending) {                            //Then, if it is still stale:
+                        expire(booking, lockReservationRowsOf(booking));  //expire() method does the actual release:
                     }
                 });
     }
